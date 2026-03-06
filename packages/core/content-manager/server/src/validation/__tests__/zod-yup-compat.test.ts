@@ -1,6 +1,5 @@
-import { z } from 'zod';
+import { z, formatYupErrors } from '@strapi/utils';
 import * as yup from 'yup';
-import { formatYupErrors } from '@strapi/utils/dist/format-yup-error';
 import { formatZodErrors } from '../zod';
 
 describe('Zod/Yup error format compatibility', () => {

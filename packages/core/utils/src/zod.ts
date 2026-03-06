@@ -1,10 +1,12 @@
-import { z } from 'zod';
+import * as z from 'zod/v4';
 
 import { ValidationError } from './errors';
 
+export { z };
+
 export const validateZod =
-  <T extends z.ZodTypeAny>(schema: T) =>
-  (data: unknown): z.TypeOf<T> => {
+  <T extends z.Schema>(schema: T) =>
+  (data: unknown): z.infer<T> => {
     try {
       return schema.parse(data);
     } catch (error) {
@@ -27,3 +29,25 @@ const formatZodErrors = (zodError: z.ZodError) => ({
   }),
   message: 'Validation error',
 });
+
+type FormErrors = Record<string, string>;
+
+/**
+ * Converts a ZodError into form-compatible errors matching
+ * getYupValidationErrors from @strapi/admin Form component.
+ *
+ * Returns a flat object with dot-path keys and string error messages.
+ * Only the first error per path is kept (matches Yup behavior).
+ */
+export const getZodValidationErrors = (error: z.ZodError): FormErrors => {
+  const errors: FormErrors = {};
+
+  for (const issue of error.issues) {
+    const path = issue.path.join('.');
+    if (path && !(path in errors)) {
+      errors[path] = issue.message;
+    }
+  }
+
+  return errors;
+};

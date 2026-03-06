@@ -1,8 +1,7 @@
-import { z } from 'zod';
-import { errors } from '@strapi/utils';
+import { z, errors } from '@strapi/utils';
 
 interface FormattedZodError {
-  path: (string | number)[];
+  path: PropertyKey[];
   message: string;
   name: 'ValidationError';
 }
@@ -54,7 +53,7 @@ const strapiID = z.union([z.string(), z.number().int().nonnegative()]);
  *   const data = await validate(body, 'Custom');  // throws with custom message
  */
 const validateZodAsync =
-  <T extends z.ZodTypeAny>(schema: T) =>
+  <T extends z.Schema>(schema: T) =>
   async (data: unknown, errorMessage?: string): Promise<z.infer<T>> => {
     try {
       return await schema.parseAsync(data);

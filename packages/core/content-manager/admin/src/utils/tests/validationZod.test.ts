@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@strapi/utils';
 
 import { getZodValidationErrors } from '../validationZod';
 

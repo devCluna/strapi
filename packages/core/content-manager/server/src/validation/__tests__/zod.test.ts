@@ -1,5 +1,4 @@
-import { z } from 'zod';
-import { errors } from '@strapi/utils';
+import { z, errors } from '@strapi/utils';
 import { formatZodErrors, strapiID, validateZodAsync } from '../zod';
 
 describe('formatZodErrors', () => {
