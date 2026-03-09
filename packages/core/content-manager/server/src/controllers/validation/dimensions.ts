@@ -1,17 +1,18 @@
-import { errors, yup, validateYupSchema, contentTypes } from '@strapi/utils';
+import { z, errors, contentTypes } from '@strapi/utils';
 import type { UID } from '@strapi/types';
 
 interface Options {
   allowMultipleLocales?: boolean;
 }
 
-const singleLocaleSchema = yup.string().nullable();
+const singleLocaleSchema = z.string().nullable().optional();
 
-const multipleLocaleSchema = yup.lazy((value) =>
-  Array.isArray(value) ? yup.array().of(singleLocaleSchema.required()) : singleLocaleSchema
-);
+const multipleLocaleSchema = z.union([
+  z.array(z.string()),
+  z.string().nullable(),
+]).optional();
 
-const statusSchema = yup.mixed().oneOf(['draft', 'published'], 'Invalid status');
+const statusSchema = z.enum(['draft', 'published'], { error: 'Invalid status' }).optional();
 
 /**
  * From a request or query object, validates and returns the locale and status of the document.
@@ -30,16 +31,19 @@ export const getDocumentLocaleAndStatus = async (
     : 'published';
   const status = providedStatus !== undefined ? providedStatus : defaultStatus;
 
-  const schema = yup.object().shape({
+  const schema = z.object({
     locale: allowMultipleLocales ? multipleLocaleSchema : singleLocaleSchema,
     status: statusSchema,
   });
 
   try {
-    await validateYupSchema(schema, { strict: true, abortEarly: false })(request);
+    schema.parse(request);
 
     return { locale, status, ...rest };
   } catch (error: any) {
-    throw new errors.ValidationError(`Validation error: ${error.message}`);
+    if (error instanceof z.ZodError) {
+      throw new errors.ValidationError(`Validation error: ${error.issues[0]?.message ?? 'invalid input'}`);
+    }
+    throw error;
   }
 };
