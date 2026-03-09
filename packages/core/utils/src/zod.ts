@@ -22,12 +22,13 @@ export const validateZod =
 const formatZodErrors = (zodError: z.ZodError) => ({
   errors: zodError.issues.map((issue) => {
     return {
-      path: issue.path,
+      path: issue.path.map(String),
       message: issue.message,
       name: 'ValidationError',
+      value: undefined,
     };
   }),
-  message: 'Validation error',
+  message: zodError.issues[0]?.message ?? 'Validation error',
 });
 
 type FormErrors = Record<string, string>;

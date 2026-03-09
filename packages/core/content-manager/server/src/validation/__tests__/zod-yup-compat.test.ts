@@ -68,10 +68,8 @@ describe('Zod/Yup error format compatibility', () => {
     expect(zodResult.success).toBe(false);
     if (!zodResult.success) {
       const zodError = formatZodErrors(zodResult.error).errors[0];
-      // Both have path, message, name
-      expect(Object.keys(zodError).sort()).toEqual(['message', 'name', 'path']);
-      // Yup has extra 'value' key — that's OK, we just need the common ones
-      expect(Object.keys(yupError)).toEqual(expect.arrayContaining(['message', 'name', 'path']));
+      // Both have identical keys: message, name, path, value
+      expect(Object.keys(zodError).sort()).toEqual(Object.keys(yupError).sort());
     }
   });
 });

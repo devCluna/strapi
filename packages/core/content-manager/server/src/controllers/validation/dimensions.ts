@@ -1,5 +1,6 @@
-import { z, errors, contentTypes } from '@strapi/utils';
+import { z, contentTypes } from '@strapi/utils';
 import type { UID } from '@strapi/types';
+import { validateZodAsync } from '../../validation/zod';
 
 interface Options {
   allowMultipleLocales?: boolean;
@@ -33,16 +34,7 @@ export const getDocumentLocaleAndStatus = async (
     status: statusSchema,
   });
 
-  try {
-    schema.parse(request);
+  await validateZodAsync(schema)(request);
 
-    return { locale, status, ...rest };
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      throw new errors.ValidationError(
-        `Validation error: ${error.issues[0]?.message ?? 'invalid input'}`
-      );
-    }
-    throw error;
-  }
+  return { locale, status, ...rest };
 };

@@ -1,9 +1,10 @@
 import { z, errors } from '@strapi/utils';
 
 interface FormattedZodError {
-  path: PropertyKey[];
+  path: string[];
   message: string;
   name: 'ValidationError';
+  value: undefined;
 }
 
 interface FormattedZodErrors {
@@ -17,23 +18,24 @@ interface FormattedZodErrors {
  */
 const formatZodErrors = (zodError: z.ZodError): FormattedZodErrors => {
   const seen = new Set<string>();
-  const errors: FormattedZodError[] = [];
+  const formattedErrors: FormattedZodError[] = [];
 
   for (const issue of zodError.issues) {
     const key = issue.path.join('.');
     if (!seen.has(key)) {
       seen.add(key);
-      errors.push({
-        path: issue.path,
+      formattedErrors.push({
+        path: issue.path.map(String),
         message: issue.message,
         name: 'ValidationError',
+        value: undefined,
       });
     }
   }
 
   return {
-    errors,
-    message: 'Validation error',
+    errors: formattedErrors,
+    message: zodError.issues[0]?.message ?? 'Validation error',
   };
 };
 

@@ -17,9 +17,10 @@ describe('formatZodErrors', () => {
             path: ['name'],
             message: expect.any(String),
             name: 'ValidationError',
+            value: undefined,
           },
         ],
-        message: 'Validation error',
+        message: result.error.issues[0].message,
       });
     }
   });
@@ -45,7 +46,7 @@ describe('formatZodErrors', () => {
         message: expect.any(String),
         name: 'ValidationError',
       });
-      expect(formatted.message).toBe('Validation error');
+      expect(formatted.message).toBe(result.error.issues[0].message);
     }
   });
 
