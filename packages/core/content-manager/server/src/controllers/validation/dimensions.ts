@@ -7,10 +7,7 @@ interface Options {
 
 const singleLocaleSchema = z.string().nullable().optional();
 
-const multipleLocaleSchema = z.union([
-  z.array(z.string()),
-  z.string().nullable(),
-]).optional();
+const multipleLocaleSchema = z.union([z.array(z.string()), z.string().nullable()]).optional();
 
 const statusSchema = z.enum(['draft', 'published'], { error: 'Invalid status' }).optional();
 
@@ -42,7 +39,9 @@ export const getDocumentLocaleAndStatus = async (
     return { locale, status, ...rest };
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      throw new errors.ValidationError(`Validation error: ${error.issues[0]?.message ?? 'invalid input'}`);
+      throw new errors.ValidationError(
+        `Validation error: ${error.issues[0]?.message ?? 'invalid input'}`
+      );
     }
     throw error;
   }

@@ -6,13 +6,13 @@ export { z };
 
 export const validateZod =
   <T extends z.Schema>(schema: T) =>
-  (data: unknown): z.infer<T> => {
+  (data: unknown, errorMessage?: string): z.infer<T> => {
     try {
       return schema.parse(data);
     } catch (error) {
       if (error instanceof z.ZodError) {
         const { message, errors } = formatZodErrors(error);
-        throw new ValidationError(message, { errors });
+        throw new ValidationError(errorMessage || message, { errors });
       }
 
       throw error;
