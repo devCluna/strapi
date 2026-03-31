@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import chalk from 'chalk';
 import execa from 'execa';
 import fse from 'fs-extra';
+import semver from 'semver';
 
 import { createGrowthSsoTrial } from '@strapi/cloud-cli';
 
@@ -16,9 +17,41 @@ import { isStderrError } from './types';
 import type { Scope } from './types';
 import { logger } from './utils/logger';
 import { gitIgnore } from './utils/gitignore';
-import { getInstallArgs } from './utils/get-package-manager-args';
+import { getInstallArgs, getPackageManagerVersion } from './utils/get-package-manager-args';
 
-const yarnNodeModulesConfig = 'nodeLinker: node-modules\n';
+/** Default Yarn Berry config so new apps use node_modules (avoids PnP issues with some tooling). */
+const yarnBerryRcTemplatePath = join(__dirname, '../templates/yarn/.yarnrc.yml');
+
+/**
+ * Yarn 1.x uses `node_modules` by default and ignores this file; Yarn 2+ may default to PnP.
+ * If version detection fails, we still write the file (same as always enabling for `yarn`).
+ *
+ * Use the caller's cwd (not the empty scaffold dir) for `yarn --version`: in an empty path Yarn
+ * resolves to Classic and would report 1.x even when the user runs Yarn Berry elsewhere.
+ */
+async function shouldWriteYarnNodeModulesRc(
+  rootPath: string,
+  packageManager: string
+): Promise<boolean> {
+  if (packageManager !== 'yarn') {
+    return false;
+  }
+  if (await fse.pathExists(join(rootPath, '.yarnrc.yml'))) {
+    return false;
+  }
+
+  try {
+    const rawVersion = await getPackageManagerVersion('yarn', { cwd: process.cwd() });
+    const v = semver.coerce(rawVersion);
+    if (v !== null && semver.lt(v, '2.0.0')) {
+      return false;
+    }
+  } catch {
+    // Yarn missing or version check failed; prefer writing the file to avoid PnP surprises.
+  }
+
+  return true;
+}
 
 async function createStrapi(scope: Scope) {
   const { rootPath } = scope;
@@ -102,8 +135,9 @@ async function createApp(scope: Scope) {
     // create config/database
     await fse.writeFile(join(rootPath, '.env'), generateDotEnv(scope));
 
-    if (packageManager === 'yarn' && !(await fse.pathExists(join(rootPath, '.yarnrc.yml')))) {
-      await fse.writeFile(join(rootPath, '.yarnrc.yml'), yarnNodeModulesConfig);
+    if (await shouldWriteYarnNodeModulesRc(rootPath, packageManager)) {
+      const body = await fse.readFile(yarnBerryRcTemplatePath, 'utf8');
+      await fse.writeFile(join(rootPath, '.yarnrc.yml'), body);
     }
 
     await trackUsage({ event: 'didCopyConfigurationFiles', scope });

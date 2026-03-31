@@ -76,7 +76,7 @@ describe('create-strapi-app', () => {
     }
   });
 
-  it('writes a Yarn node-modules linker config for Yarn projects', async () => {
+  it('writes a Yarn node-modules linker config for Yarn Berry (2+) projects', async () => {
     const projectDir = mkProjectDir();
     try {
       await spawnCsa([projectDir, ...baseScaffoldArgs, '--use-yarn'])
