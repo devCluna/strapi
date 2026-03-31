@@ -8899,6 +8899,7 @@ __metadata:
     "@paralleldrive/cuid2": "npm:2.2.2"
     "@strapi/utils": "npm:5.42.0"
     "@types/fs-extra": "npm:11.0.4"
+    "@types/jest": "npm:29.5.2"
     ajv: "npm:8.18.0"
     date-fns: "npm:2.30.0"
     debug: "npm:4.3.4"
