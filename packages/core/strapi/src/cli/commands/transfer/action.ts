@@ -117,7 +117,7 @@ export default async (opts: CmdOptions) => {
     transforms: {
       links: [
         {
-          filter(link) {
+          filter(link: engineDataTransfer.ILink) {
             return (
               !DEFAULT_IGNORED_CONTENT_TYPES.includes(link.left.type) &&
               !DEFAULT_IGNORED_CONTENT_TYPES.includes(link.right.type)
@@ -127,7 +127,7 @@ export default async (opts: CmdOptions) => {
       ],
       entities: [
         {
-          filter(entity) {
+          filter(entity: engineDataTransfer.IEntity) {
             return !DEFAULT_IGNORED_CONTENT_TYPES.includes(entity.type);
           },
         },
