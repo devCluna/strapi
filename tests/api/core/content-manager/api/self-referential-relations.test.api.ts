@@ -1,3 +1,8 @@
+/**
+ * Integration coverage for join-table self-referential relations with Draft & Publish.
+ * CM findOne uses countRelations() unless the request passes an explicit populate for each
+ * relation field; otherwise relations resolve to `{ count: n }` instead of linked entities.
+ */
 import { createTestBuilder } from 'api-tests/builder';
 import { createStrapiInstance } from 'api-tests/strapi';
 import { createAuthRequest } from 'api-tests/request';
@@ -39,13 +44,20 @@ const category = {
       target: 'api::category.category',
       targetAttribute: 'children',
     },
-    // Unidirectional self-referential
+    // Unidirectional self-referential (join table; no inverse field)
     related: {
       type: 'relation',
       relation: 'oneToMany',
       target: 'api::category.category',
     },
   },
+} as const;
+
+/** Populate so CM returns linked documents, not `{ count }` only. */
+const categoryRelationPopulate = {
+  parent: true,
+  children: true,
+  related: true,
 } as const;
 
 const getCategory = async (
@@ -55,9 +67,21 @@ const getCategory = async (
   const res = await rq({
     method: 'GET',
     url: `/content-manager/collection-types/api::category.category/${documentId}`,
-    qs: { status },
+    qs: {
+      status,
+      populate: categoryRelationPopulate,
+    },
   });
   return res.body.data as CategoryEntry;
+};
+
+const getRelatedDocumentIds = (related: CategoryEntry['related']): string[] => {
+  if (related == null) return [];
+  if (Array.isArray(related)) {
+    return related.map((r) => r.documentId);
+  }
+  const single = related as CategoryRelation;
+  return [single.documentId];
 };
 
 describe('CM API - Self-referential relations with Draft & Publish', () => {
@@ -67,7 +91,6 @@ describe('CM API - Self-referential relations with Draft & Publish', () => {
     strapi = await createStrapiInstance();
     rq = await createAuthRequest({ strapi });
 
-    // Create two categories
     for (const name of ['Category A', 'Category B']) {
       const res = await rq({
         method: 'POST',
@@ -86,7 +109,6 @@ describe('CM API - Self-referential relations with Draft & Publish', () => {
   test('Self-referential relation (entry to itself) is preserved after publish', async () => {
     const [catA] = data.categories;
 
-    // Set catA's parent to itself (self-referential)
     await rq({
       method: 'PUT',
       url: `/content-manager/collection-types/api::category.category/${catA.documentId}`,
@@ -96,17 +118,14 @@ describe('CM API - Self-referential relations with Draft & Publish', () => {
       },
     });
 
-    // Verify draft has the self-relation
     const draftBefore = await getCategory(catA.documentId, 'draft');
     expect(draftBefore.parent).toMatchObject({ documentId: catA.documentId });
 
-    // Publish
     await rq({
       method: 'POST',
       url: `/content-manager/collection-types/api::category.category/${catA.documentId}/actions/publish`,
     });
 
-    // Verify published version has the self-relation
     const published = await getCategory(catA.documentId, 'published');
     expect(published.parent).toMatchObject({ documentId: catA.documentId });
   });
@@ -114,7 +133,6 @@ describe('CM API - Self-referential relations with Draft & Publish', () => {
   test('Self-referential relation between two entries is preserved after publish', async () => {
     const [catA, catB] = data.categories;
 
-    // Set catB's parent to catA
     await rq({
       method: 'PUT',
       url: `/content-manager/collection-types/api::category.category/${catB.documentId}`,
@@ -124,13 +142,11 @@ describe('CM API - Self-referential relations with Draft & Publish', () => {
       },
     });
 
-    // Publish catB
     await rq({
       method: 'POST',
       url: `/content-manager/collection-types/api::category.category/${catB.documentId}/actions/publish`,
     });
 
-    // Verify published catB has the relation to catA
     const published = await getCategory(catB.documentId, 'published');
     expect(published.parent).toMatchObject({ documentId: catA.documentId });
   });
@@ -138,7 +154,6 @@ describe('CM API - Self-referential relations with Draft & Publish', () => {
   test('Self-referential relation (entry to itself) is preserved after discard draft', async () => {
     const [catA] = data.categories;
 
-    // Update the draft while keeping the self-relation
     await rq({
       method: 'PUT',
       url: `/content-manager/collection-types/api::category.category/${catA.documentId}`,
@@ -148,14 +163,110 @@ describe('CM API - Self-referential relations with Draft & Publish', () => {
       },
     });
 
-    // Discard draft (reverts to published version)
     await rq({
       method: 'POST',
       url: `/content-manager/collection-types/api::category.category/${catA.documentId}/actions/discard`,
     });
 
-    // Verify the reverted draft still has the self-relation
     const draft = await getCategory(catA.documentId, 'draft');
     expect(draft.parent).toMatchObject({ documentId: catA.documentId });
+  });
+
+  test('Unidirectional self-referential related (entry to itself) is preserved after publish', async () => {
+    const createRes = await rq({
+      method: 'POST',
+      url: '/content-manager/collection-types/api::category.category',
+      body: { name: 'Category unidirectional self' },
+    });
+    const cat = createRes.body.data as CategoryEntry;
+
+    await rq({
+      method: 'PUT',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}`,
+      body: {
+        name: cat.name,
+        related: { connect: [{ documentId: cat.documentId }] },
+      },
+    });
+
+    const draftBefore = await getCategory(cat.documentId, 'draft');
+    expect(getRelatedDocumentIds(draftBefore.related)).toContain(cat.documentId);
+
+    await rq({
+      method: 'POST',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}/actions/publish`,
+    });
+
+    const published = await getCategory(cat.documentId, 'published');
+    expect(getRelatedDocumentIds(published.related)).toContain(cat.documentId);
+  });
+
+  test('Draft keeps self-referential parent after unpublish (published version removed)', async () => {
+    const createRes = await rq({
+      method: 'POST',
+      url: '/content-manager/collection-types/api::category.category',
+      body: { name: 'Unpublish draft keep' },
+    });
+    const cat = createRes.body.data as CategoryEntry;
+
+    await rq({
+      method: 'PUT',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}`,
+      body: {
+        name: cat.name,
+        parent: { documentId: cat.documentId, locale: null },
+      },
+    });
+
+    await rq({
+      method: 'POST',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}/actions/publish`,
+    });
+
+    await rq({
+      method: 'POST',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}/actions/unpublish`,
+      body: {},
+    });
+
+    const draft = await getCategory(cat.documentId, 'draft');
+    expect(draft.parent).toMatchObject({ documentId: cat.documentId });
+  });
+
+  test('Self-referential parent survives publish → unpublish → publish again', async () => {
+    const createRes = await rq({
+      method: 'POST',
+      url: '/content-manager/collection-types/api::category.category',
+      body: { name: 'Republish cycle' },
+    });
+    const cat = createRes.body.data as CategoryEntry;
+
+    await rq({
+      method: 'PUT',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}`,
+      body: {
+        name: cat.name,
+        parent: { documentId: cat.documentId, locale: null },
+      },
+    });
+
+    await rq({
+      method: 'POST',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}/actions/publish`,
+    });
+
+    await rq({
+      method: 'POST',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}/actions/unpublish`,
+      body: {},
+    });
+
+    await rq({
+      method: 'POST',
+      url: `/content-manager/collection-types/api::category.category/${cat.documentId}/actions/publish`,
+    });
+
+    const published = await getCategory(cat.documentId, 'published');
+    expect(published.parent).toMatchObject({ documentId: cat.documentId });
   });
 });
